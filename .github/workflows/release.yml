@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: brew install just
+      - run: NO_INSTALL=1 just release
+      - run: codesign --verify --deep --strict target/release/FeedbackRun.plugin
+      - run: ditto -c -k --sequesterRsrc --keepParent target/release/FeedbackRun.plugin FeedbackRun-macOS-universal.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: FeedbackRun-macOS-universal.zip
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked
+      - shell: pwsh
+        run: |
+          Copy-Item target/release/feedbackrun.dll FeedbackRun.aex
+          Compress-Archive -Path FeedbackRun.aex -DestinationPath FeedbackRun-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: FeedbackRun-Windows-x64.zip
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          merge-multiple: true
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --verify-tag --title "FeedbackRun $GITHUB_REF_NAME" --notes "初回リリース。macOS (Intel / Apple Silicon) と Windows (x64) 用のビルドです。フォルダを指定して .feedbackrun 形式のフレームを記録・再生できます。使い方とインストール方法は README を参照してください。"

@@ -1,0 +1,19 @@
+[package]
+name = "feedbackrun"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+after-effects = { git = "https://github.com/virtualritz/after-effects" }
+feedbackrun-engine = { path = "../feedbackrun-engine" }
+crc32fast = "1"
+lz4_flex = "0.11"
+rfd = { version = "0.17", default-features = false }
+serde = { version = "1", features = ["derive"] }
+
+[build-dependencies]
+pipl = { git = "https://github.com/virtualritz/after-effects" }
